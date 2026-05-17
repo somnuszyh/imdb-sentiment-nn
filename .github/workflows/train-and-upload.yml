@@ -1,0 +1,51 @@
+name: Evaluate and Upload RoBERTa to Hugging Face
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  evaluate-and-upload:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Evaluate model with quality gate
+        run: python train.py
+
+      - name: Upload artifacts to Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python - <<'PY'
+          import os
+          from huggingface_hub import HfApi
+
+          repo_id = "ceilf6/imdb-sentiment-roberta"
+          token = os.environ["HF_TOKEN"]
+          api = HfApi(token=token)
+          api.create_repo(repo_id=repo_id, repo_type="model", private=False, exist_ok=True)
+          
+          # 💡 这里改成 "model"，因为我们的 train.py 会把文件生成在 model/ 目录下
+          api.upload_folder(
+              repo_id=repo_id,
+              repo_type="model",
+              folder_path="model", 
+              path_in_repo=".",
+              commit_message="Upload high-accuracy IMDB sentiment RoBERTa artifacts",
+          )
+          print(f"Uploaded artifacts to https://huggingface.co/somnus11/imdb-sentiment-roberta")
+          PY
